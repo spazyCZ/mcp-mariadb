@@ -9,5 +9,8 @@ src/logs/*
 .env
 uv.lock
 .DS_Store
-.env
-.env
+
+# Build artifacts
+*.egg-info/
+dist/
+build/

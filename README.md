@@ -11,6 +11,7 @@ The MCP MariaDB Server provides a Model Context Protocol (MCP) interface for man
 - [Available Tools](#available-tools)
 - [Embeddings & Vector Store](#embeddings--vector-store)
 - [Configuration & Environment Variables](#configuration--environment-variables)
+- [Token Authentication (Simple Shared Secret)](#token-authentication-simple-shared-secret)
 - [Installation & Setup](#installation--setup)
 - [Usage Examples](#usage-examples)
 - [Integration - Claude desktop/Cursor/Windsurf](#integration---claude-desktopcursorwindsurf)
@@ -140,6 +141,7 @@ All configuration is via environment variables (typically set in a `.env` file):
 | `DB_CHARSET`           | Character set for database connection (e.g., `cp1251`) | No       | MariaDB default |
 | `MCP_READ_ONLY`        | Enforce read-only SQL mode (`true`/`false`)            | No       | `true`       |
 | `MCP_MAX_POOL_SIZE`    | Max DB connection pool size                            | No       | `10`         |
+| `MCP_TOKEN`            | Shared secret token for authentication (HTTP/SSE)      | No       | None (disabled) |
 | `EMBEDDING_PROVIDER`   | Embedding provider (`openai`/`gemini`/`huggingface`)   | No     |`None`(Disabled)|
 | `OPENAI_API_KEY`       | API key for OpenAI embeddings                          | Yes (if EMBEDDING_PROVIDER=openai) | |
 | `GEMINI_API_KEY`       | API key for Gemini embeddings                          | Yes (if EMBEDDING_PROVIDER=gemini) | |
@@ -148,6 +150,64 @@ All configuration is via environment variables (typically set in a `.env` file):
 | `ALLOWED_HOSTS`        | Comma-separated list of allowed hosts                  | No       | `localhost,127.0.0.1` |
 
 Note that if using 'http' or 'sse' as the transport, configuring authentication is important for security if you allow connections outside of localhost. Because different organizations use different authentication methods, the server does not provide a default authentication method. You will need to configure your own authentication method. Thankfully FastMCP provides a simple way to do this starting with version 2.12.1. See the [FastMCP documentation](https://gofastmcp.com/servers/auth/authentication#environment-configuration) for more information. We have provided an example configuration below.
+
+---
+
+## Token Authentication (Simple Shared Secret)
+
+For HTTP/SSE transport, this server includes a built-in **shared token authentication** mechanism as a simple authentication method. This is suitable for internal or controlled deployments but is not as robust as OAuth/JWT or mutual TLS.
+
+### How It Works
+
+When `MCP_TOKEN` is set, the server requires all HTTP/SSE requests to include the token via:
+- **Authorization header**: `Authorization: Bearer <token>` (or bare token without "Bearer")
+- **Custom header**: `x-mcp-token: <token>`
+
+If `MCP_TOKEN` is not set (None or empty), token authentication is disabled and all requests are allowed.
+
+### Setup
+
+1. **Generate a strong random token**:
+   ```bash
+   openssl rand -base64 32
+   ```
+
+2. **Add to `.env` file**:
+   ```dotenv
+   MCP_TOKEN=your-long-random-secret-token-here
+   ```
+
+3. **Start the server**:
+   ```bash
+   uv run server.py --transport http --host 127.0.0.1 --port 9001 --path /mcp
+   ```
+
+4. **Test with curl**:
+   ```bash
+   # Using Bearer token
+   curl -H "Authorization: Bearer your-long-random-secret-token-here" \
+        http://127.0.0.1:9001/mcp
+   
+   # Using custom header
+   curl -H "x-mcp-token: your-long-random-secret-token-here" \
+        http://127.0.0.1:9001/mcp
+   ```
+
+### Security Considerations
+
+⚠️ **Important Security Notes**:
+
+- **Always use TLS**: Run behind a reverse proxy (nginx, Caddy, cloud load balancer) with TLS termination. Never expose plain HTTP over untrusted networks.
+- **Shared secret limitations**: This is a simple shared-secret approach suitable for internal/controlled clients. For public-facing servers, prefer OAuth2/JWT or mutual TLS.
+- **Token rotation**: Rotate the token periodically and store it securely (e.g., in a secret manager).
+- **Defense in depth**: Combine with `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`, and firewall rules for additional protection.
+- **No token = No auth**: Leaving `MCP_TOKEN` unset disables authentication entirely. This is **NOT recommended** for any deployment accessible from outside localhost.
+
+### Alternative Authentication
+
+For more robust authentication, FastMCP provides support for OAuth2 providers (GitHub, Google, etc.) and JWT. See the [FastMCP authentication documentation](https://gofastmcp.com/servers/auth/authentication#environment-configuration) for details.
+
+---
 
 #### Example `.env` file
 
@@ -162,6 +222,9 @@ DB_NAME=your_default_database
 MCP_READ_ONLY=true
 MCP_MAX_POOL_SIZE=10
 
+# Token authentication (recommended for HTTP/SSE)
+MCP_TOKEN=your-long-random-secret-token-here
+
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=AI...
@@ -175,8 +238,12 @@ DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 DB_PORT=3306
 DB_NAME=your_default_database
+
 MCP_READ_ONLY=true
 MCP_MAX_POOL_SIZE=10
+
+# Token authentication (recommended for HTTP/SSE)
+MCP_TOKEN=your-long-random-secret-token-here
 ```
 
 **Example Authentication Configuration:**

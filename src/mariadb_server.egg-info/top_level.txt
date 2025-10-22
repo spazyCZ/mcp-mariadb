@@ -1,7 +1,0 @@
-__init__
-config
-embeddings
-main
-server
-tests
-token_auth_middleware
