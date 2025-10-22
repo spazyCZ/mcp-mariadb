@@ -70,6 +70,14 @@ DB_CHARSET = os.getenv("DB_CHARSET")
 MCP_READ_ONLY = os.getenv("MCP_READ_ONLY", "true").lower() == "true"
 MCP_MAX_POOL_SIZE = int(os.getenv("MCP_MAX_POOL_SIZE", 10))
 
+# Simple shared-token for basic auth (optional)
+# If set, the server will require requests to present this token via:
+#   Authorization: Bearer <token>
+# or
+#   x-mcp-token: <token>
+# Leave empty to disable token check (NOT recommended for public exposure).
+MCP_TOKEN = os.getenv("MCP_TOKEN")
+
 # --- Embedding Configuration ---
 # Provider selection ('openai' or 'gemini' or 'huggingface')
 EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER")
