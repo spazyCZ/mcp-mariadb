@@ -4,7 +4,7 @@
 from config import (
     DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_CHARSET,
     MCP_READ_ONLY, MCP_MAX_POOL_SIZE, EMBEDDING_PROVIDER,
-    ALLOWED_ORIGINS, ALLOWED_HOSTS,
+    ALLOWED_ORIGINS, ALLOWED_HOSTS, MCP_TOKEN,
     logger
 )
 
@@ -21,6 +21,9 @@ from fastmcp import FastMCP, Context
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+# Import token authentication middleware
+from token_auth_middleware import TokenAuthMiddleware
 
 # Import EmbeddingService for vector store creation
 from embeddings import EmbeddingService
@@ -871,6 +874,10 @@ class MariaDBServer:
                     Middleware(TrustedHostMiddleware, 
                                allowed_hosts=ALLOWED_HOSTS)
                 ]
+                
+                # Insert token auth middleware (first in chain so reject happens early).
+                # If MCP_TOKEN is None/empty the middleware is effectively a no-op.
+                middleware.insert(0, Middleware(TokenAuthMiddleware, token=MCP_TOKEN))
             if transport == "sse":
                 transport_kwargs = {"host": host, "port": port, "middleware": middleware}
                 logger.info(f"Starting MCP server via {transport} on {host}:{port}...")
